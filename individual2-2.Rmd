@@ -1,0 +1,154 @@
+---
+title: "Lab 4"
+author: "Sydney Thompson"
+date: "3/18/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Joining & Tidying ISU Football Data
+
+# Loading Data
+
+```{r}
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+defense <- read_excel('/Users/sydne/Documents/ds202_hw1/cyclonesFootball2020.xlsx', sheet='Defensive')
+offense <- read_excel('/Users/sydne/Documents/ds202_hw1/cyclonesFootball2020.xlsx', sheet='Offensive')
+biography <- read_excel('/Users/sydne/Documents/ds202_hw1/cyclonesFootball2020.xlsx', sheet='Biography')
+str(defense)
+```
+
+# Part 1: Cleaning Data
+
+# 1) The player names and opponent names are factors.
+
+```{r}
+as.factor(defense$Name)
+as.factor(defense$Opponent_Opponent)
+as.factor(offense$Name)
+as.factor(offense$Opponent_Opponent)
+```
+
+# 2) All offensive and defensive statistics are numerical. The Weight column in biogrpahy is also numeric. (Optional: Read ?across and learn to mutate multiple columns simultaneously using the across function in dplyr)
+
+```{r}
+defense <- defense %>% mutate(Tackles_Solo = as.numeric(Tackles_Solo))%>% na.omit
+defense <- defense %>% mutate(Tackles_ASST = as.numeric(Tackles_ASST))%>% na.omit
+defense <- defense %>% mutate(Tackles_TFL = as.numeric(Tackles_TFL))%>% na.omit
+defense <- defense %>% mutate(Tackles_Sack = as.numeric(Tackles_Sack))%>% na.omit
+defense <- defense %>% mutate(Turnover_FF = as.numeric(Turnover_FF))%>% na.omit
+defense <- defense %>% mutate(Turnover_FR = as.numeric(Turnover_FR))%>% na.omit
+defense <- defense %>% mutate(Turnover_INT = as.numeric(Turnover_INT))%>% na.omit
+defense <- defense %>% mutate(Pass_QBH = as.numeric(Pass_QBH))%>% na.omit
+defense <- defense %>% mutate(Pass_PB = as.numeric(Pass_PB))%>% na.omit
+```
+
+```{r}
+offense <- offense %>% mutate(Receiving_REC=as.numeric(Receiving_REC))
+offense <- offense %>% mutate(Receiving_YDS=as.numeric(Receiving_YDS))
+offense <- offense %>% mutate(Receiving_TD=as.numeric(Receiving_TD))
+offense <- offense %>% mutate(Rushing_TD=as.numeric(Rushing_TD))
+offense <- offense %>% mutate(Rushing_ATT=as.numeric(Rushing_ATT))
+offense <- offense %>% mutate(Rushing_YDS=as.numeric(Rushing_YDS))
+offense <- offense %>% mutate(`Passing_CMP-ATT`=as.numeric(`Passing_CMP-ATT`))
+offense <- offense %>%  mutate(Passing_YDS=as.numeric(Passing_YDS))
+offense <- offense %>% mutate(Passing_TD=as.numeric(Passing_TD))
+offense <- offense %>% mutate(Passing_INT=as.numeric(Passing_INT))
+```
+
+```{r}
+biography <- biography %>% mutate(Weight=as.numeric(Weight))
+```
+
+# 3) Change the Height column in biography into numeric. (Hint: Use a unit that works well)
+
+```{r}
+biography <- biography %>% mutate(Height=as.numeric(Height)) %>% na.omit
+```
+
+```{r}
+str(defense)
+str(offense)
+str(biography)
+```
+
+# Part 2: Tidying
+
+# 1) Reformat the offClean data frame into a tidy format using pivot_longer. The type of statistic (Receiving_REC for the number of receivings, Receiving_YDS for receiving yards, etc) is added as a new key column named stat.
+
+```{r}
+offtidy <- offense %>% pivot_longer(Receiving_REC:Passing_INT, names_to='stat', values_to='count')
+head(offtidy)
+```
+
+# 2) Show on the distributions of the offensive statistics. The distribution of each offensive statsitic should be shown in a separate facet. Explain the patterns you see.
+
+```{r}
+ggplot(offtidy, aes(x=count)) + geom_histogram() + facet_wrap(~stat, scales='free_y')
+```
+
+From the facets shown above, one can see that 
+
+# 3) Did ISU have better offense against Oregon or Oklahoma? Answer this question by creating a scatterplot with the x- and y-axes being the receiving yards of the ISU players against these two opponents. A large number of receiving yards indicates good offense.
+
+```{r}
+off_ore_okl <- offtidy %>% filter(stat=='Receiving_YDS')
+ore_okl <- off_ore_okl %>% filter(Opponent_Opponent==c('Oregon', 'Oklahoma'))
+ggplot(ore_okl, aes(x=Opponent_Opponent, y=count))+geom_point()+xlab('Opponent Teams')+ylab('Number of Receiving Yards')+ggtitle('Opponent Teams Receiving Yards')
+```
+
+# 4) Separate the Hometown column into two columns, namely, the city and the state where the player comes from. Print the first few rows of these two columns. (Hint: look at the sep= argument of separate)
+
+```{r}
+home <- biography %>% separate(Hometown, into = c('City', 'State'), sep=',')
+head(home)
+```
+
+# 5) How many players are there from each state?
+
+```{r}
+home %>% group_by(State) %>% count(State)
+```
+
+# Part 3: Joining Data Frames
+
+# 1) Find which states do the ISU players (both defensive and offensive) come from. Create an appropriate numerical or graphical summary.
+
+```{r}
+defbiography <- inner_join(defense, home, by = 'Name')
+offbiography <- inner_join(offense, home, by = 'Name')
+defbiography %>% group_by(State) %>% count(State)
+offbiography %>% group_by(State) %>% count(State)
+```
+
+# 2) How does the performance of quarterback Brock Purdy relate to the performance of the ISU team?
+
+```{r}
+defoffense <- inner_join(defense, offense, by = "Name")
+brock <- defoffense %>% filter(Name == 'Purdy, Brock')
+mean(brock$Passing_YDS) 
+mean(defoffense$Passing_YDS, na.rm=TRUE) 
+```
+Brock Purdy's average performance, measured by passing yards, is about two times greater than the average performance of the entire ISU team. 
+
+# 3) Which ISU player(s) made the biggest progress over the last year? Compare the player-level statistics (i.e. averages and totals for each player) using both the 2020 and the 2019 data here. Choose for yourself the player statistics to investigate.
+
+```{r}
+defense %>% group_by(Name) %>% count(Tackles_Solo)
+offense %>% group_by(Name) %>% count(Passing_YDS)
+defense2019 <- read_excel('/Users/sydne/Documents/ds202_hw1/cyclonesFootball2019.xlsx', sheet='Defensive')
+str(defense2019)
+offense2019 <- read_excel('/Users/sydne/Documents/ds202_hw1/cyclonesFootball2019.xlsx', sheet='Offensive')
+str(offense2019)
+defense2019 %>% group_by(Name) %>% count(Tackles_Solo)
+offense2019 %>% group_by(Name) %>% count(Passing_YDS)
+```
+
+From looking at both the 2020 and 2019 data above, the player with the greatest progress defensively based on solo tackles was Jake Hummel. He made 10 solo tackles in 2019 and improved to 28 in 2020. The player with the greatest progress offensively based on passing yards was Dylan Soehner. He went from 0 passing yards in 2019 to 28 in 2020.
+
