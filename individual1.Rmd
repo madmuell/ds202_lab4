@@ -1,0 +1,208 @@
+---
+title: "Mueller_ds202_lab4"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# DS 202 - Lab #4
+# Joining and Tidying ISU Football Data
+# Madalyn Mueller & Sydney Thompson
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(readxl)
+defense <- read_excel('/Users/maddiemueller/Desktop/cyclonesFootball2020.xlsx', sheet='Defensive')
+str(defense)
+
+offense <- read_excel('/Users/maddiemueller/Desktop/cyclonesFootball2020.xlsx', sheet='Offensive')
+str(offense)
+
+bio <- read_excel('/Users/maddiemueller/Desktop/cyclonesFootball2020.xlsx', sheet='Biography')
+str(bio)
+```
+
+# Part 1: Cleaning data
+
+# Although the three Excel sheets are loaded into R, they are not useful before some cleaning. Manipulate the three imported data frames, so that in the cleaned dataset:
+
+## 1. The player names and opponent names are factors.
+
+```{r}
+str(defense)
+as.factor(defense$Name)
+as.factor(defense$Opponent_Opponent)
+str(offense)
+as.factor(offense$Name)
+as.factor(offense$Opponent_Opponent)
+str(bio)
+as.factor(bio$Name)
+```
+
+## 2. All offensive and defensive statistics are numerical. The Weight column in biography is also numeric. (Optional: Read ?across and learn to mutate multiple columns simultaneously using the across function in dplyr)
+
+```{r}
+defense <- defense %>%
+  mutate(Tackles_Solo = as.numeric(Tackles_Solo)) %>% na.omit
+defense <- defense %>%
+  mutate(Tackles_ASST = as.numeric(Tackles_ASST)) %>% na.omit
+defense <- defense %>%
+  mutate(Tackles_TFL = as.numeric(Tackles_TFL)) %>% na.omit
+defense <- defense %>%
+  mutate(Tackles_Sack = as.numeric(Tackles_Sack)) %>% na.omit
+defense <- defense %>%
+  mutate(Turnover_FF = as.numeric(Turnover_FF)) %>% na.omit
+defense <- defense %>%
+  mutate(Turnover_FR = as.numeric(Turnover_FR)) %>% na.omit
+defense <- defense %>%
+  mutate(Turnover_INT = as.numeric(Turnover_INT)) %>% na.omit
+defense <- defense %>%
+  mutate(Pass_QBH = as.numeric(Pass_QBH)) %>% na.omit
+defense <- defense %>%
+  mutate(Pass_PB = as.numeric(Pass_PB)) %>% na.omit
+```
+ 
+```{r} 
+offense <- offense %>%
+  mutate(Receiving_REC = as.numeric(Receiving_REC)) 
+offense <- offense %>%
+  mutate(Receiving_YDS = as.numeric(Receiving_YDS)) 
+offense <- offense %>%
+  mutate(Receiving_TD = as.numeric(Receiving_TD))
+offense <- offense %>%
+  mutate(Rushing_ATT = as.numeric(Rushing_YDS))
+offense <- offense %>%
+  mutate(Rushing_YDS = as.numeric(Rushing_YDS))
+offense <- offense %>%
+  mutate(Rushing_TD = as.numeric(Rushing_TD))
+offense <- offense %>%
+  mutate('Passing_CMP-ATT' = as.numeric('Passing_CMP-ATT'))
+offense <- offense %>%
+  mutate(Passing_YDS = as.numeric(Passing_YDS))
+offense <- offense %>%
+  mutate(Passing_TD = as.numeric(Passing_TD))
+offense <- offense %>%
+  mutate(Passing_INT = as.numeric(Passing_INT))
+```
+ 
+```{r}
+bio <- bio %>%
+  mutate(Weight = as.numeric(Weight))
+```
+  
+## 3. Change the Height column in biography into numeric. (Hint: Use a unit that works well)
+
+```{r}
+bio <- bio %>%
+  mutate(Height = as.numeric(Height))
+```
+
+# By cleaning the three data frames in R, at the end of this step you should have the following three clean data frames: defClean, offClean, and bioClean. Print the structures of these data frames using str().
+
+# Part 2: Tidying
+
+# For the following questions, work on the cleaned data frames defClean, offClean, and bioClean.
+
+## 1. Reformat the offClean data frame into a tidy format using pivot_longer. The type of statistic (Receiving_REC for the number of receivings, Receiving_YDS for receiving yards, etc) is added as a new key column named stat.
+
+```{r}
+offtidy <- offense %>%
+  pivot_longer(Receiving_REC:Passing_INT, names_to='stat', values_to='count')
+head(offtidy)
+```
+
+## 2. Show on the distributions of the offensive statistics. The distribution of each offensive statsitic should be shown in a separate facet. Explain the patterns you see.
+
+```{r}
+ggplot(offtidy, aes(x=count)) + geom_histogram() + facet_wrap(~stat, scales='free_y')
+```
+
+## 3. Did ISU have better offense against Oregon or Oklahoma? Answer this question by creating a scatterplot with the x- and y-axes being the receiving yards of the ISU players against these two opponents. A large number of receiving yards indicates good offense.
+
+```{r}
+offtidyorok <- offtidy %>%
+  filter(stat == 'Receiving_YDS')
+orok <- offtidyorok %>%
+  filter(Opponent_Opponent == c('Oregon','Oklahoma'))
+ggplot(orok, aes(x=Opponent_Opponent, y=count)) + geom_point() 
+```
+
+# Now turn our attention to the player biography.
+
+## 4. Separate the Hometown column into two columns, namely, the city and the state where the player comes from. Print the first few rows of these two columns. (Hint: look at the sep= argument of separate)
+
+```{r}
+tidybio <- bio %>%
+  separate(Hometown, into = c("City", "State"))
+head(tidybio)
+```
+
+## 5. How many players are there from each state?
+
+```{r}
+tidybio %>%
+  group_by(State) %>% count(State)
+```
+
+# Part 3: Joining Data Frames
+
+## 1. Find which states do the ISU players (both defensive and offensive) come from. Create an appropriate numerical or graphical summary.
+
+```{r}
+defbio <- inner_join(defense, tidybio, by = 'Name')
+offbio <- inner_join(offense, tidybio, by = 'Name')
+```
+
+```{r}
+defbio %>%
+  group_by(State) %>% count(State)
+offbio %>%
+  group_by(State) %>% count(State)
+```
+
+## 2. How does the performance of quarterback Brock Purdy relate to the performance of the ISU team?
+
+```{r}
+defoff <- inner_join(defense, offense, by = "Name")
+brock <- defoff %>%
+  filter(Name == 'Purdy, Brock')
+mean(brock$Passing_YDS) 
+mean(defoff$Passing_YDS, na.rm=TRUE) 
+```
+
+The average performance of Brock Purdy (measured by passing yards) is significantly higher than the average performance of the ISU team.
+
+## 3. Which ISU player(s) made the biggest progress over the last year? Compare the player-level statistics (i.e. averages and totals for each player) using both the 2020 and the 2019 data here. Choose for yourself the player statistics to investigate.
+
+```{r}
+defense %>%
+  group_by(Name) %>% count(Tackles_Solo)
+```
+  
+```{r}
+offense %>%
+  group_by(Name) %>% count(Passing_YDS)
+```
+```{r}
+defense2019 <- read_excel('/Users/maddiemueller/Desktop/cyclonesFootball2019.xlsx', sheet='Defensive')
+str(defense2019)
+
+offense2019 <- read_excel('/Users/maddiemueller/Desktop/cyclonesFootball2019.xlsx', sheet='Offensive')
+str(offense2019)
+```
+
+```{r}
+defense2019 %>%
+  group_by(Name) %>% count(Tackles_Solo)
+```
+
+```{r}
+offense2019 %>%
+  group_by(Name) %>% count(Passing_YDS)
+```
+
+The most improved defensive player based on solo tackles was Jake Hummel. In 2019, he made 10 solo tackles, and in 2020 he made 28 solo tackles. The most improved offensive player based on passing yards was Dylan Soehner. In 2019 he made 0/NA passing yards and in 2020 he made 28 passing yards.
